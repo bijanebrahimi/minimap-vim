@@ -68,8 +68,12 @@ function! minimap#_on_open()
   hi link CursorLine Cursor
   winpos 0 0
   set lines=999
+  set updatetime=100
 
-  nnoremap <silent> <Plug>(lazy-apply-do) :call minimap#_lazy_apply_do()<CR>
+  augroup minimap_receiver
+    autocmd!
+    autocmd User * call minimap#_lazy_apply_do()
+  augroup END
 
   " send ACK for open.
   if exists('g:minimap_ack')
@@ -96,6 +100,7 @@ endfunction
 
 function! minimap#_on_recv(data)
   call minimap#_lazy_apply(eval(a:data))
+  doautocmd User
 endfunction
 
 function! minimap#_apply(data)
@@ -112,23 +117,17 @@ function! minimap#_apply(data)
   endif
 endfunction
 
-let s:lazy_apply_count = get(s:, 'lazy_apply_count', 0)
 let s:lazy_apply_data = {}
 
 function! minimap#_lazy_apply(data)
-  let s:lazy_apply_count += 1
   let s:lazy_apply_data = a:data
-  call feedkeys("\<Plug>(lazy-apply-do)", 'm')
 endfunction
 
 function! minimap#_lazy_apply_do()
-  if s:lazy_apply_count > 0
-    let s:lazy_apply_count -= 1
-    if s:lazy_apply_count == 0
-      call minimap#_apply(s:lazy_apply_data)
-    endif
+  if len(s:lazy_apply_data)
+    call minimap#_apply(s:lazy_apply_data)
+    let s:lazy_apply_data = {}
   endif
-  return ''
 endfunction
 
 function! minimap#_set_view_range(line, col, start, end)
