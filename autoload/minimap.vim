@@ -69,6 +69,8 @@ function! minimap#_on_open()
   winpos 0 0
   set lines=999
 
+  nnoremap <silent> <Plug>(lazy-apply-do) :call minimap#_lazy_apply_do()<CR>
+
   " send ACK for open.
   if exists('g:minimap_ack')
     let expr = printf(':call minimap#_ack_open("%s")<CR>', v:servername)
@@ -93,8 +95,11 @@ function! minimap#_get_current_path()
 endfunction
 
 function! minimap#_on_recv(data)
-  let data = eval(a:data)
-  let path = data['path']
+  call minimap#_lazy_apply(eval(a:data))
+endfunction
+
+function! minimap#_apply(data)
+  let path = a:data['path']
   if len(path) == 0
     return
   endif
@@ -102,9 +107,28 @@ function! minimap#_on_recv(data)
     execute 'view! ' . path
   endif
   if path ==# minimap#_get_current_path()
-    call minimap#_set_view_range(data['line'], data['col'],
-          \ data['start'], data['end'])
+    call minimap#_set_view_range(a:data['line'], a:data['col'],
+          \ a:data['start'], a:data['end'])
   endif
+endfunction
+
+let s:lazy_apply_count = get(s:, 'lazy_apply_count', 0)
+let s:lazy_apply_data = {}
+
+function! minimap#_lazy_apply(data)
+  let s:lazy_apply_count += 1
+  let s:lazy_apply_data = a:data
+  call feedkeys("\<Plug>(lazy-apply-do)", 'm')
+endfunction
+
+function! minimap#_lazy_apply_do()
+  if s:lazy_apply_count > 0
+    let s:lazy_apply_count -= 1
+    if s:lazy_apply_count == 0
+      call minimap#_apply(s:lazy_apply_data)
+    endif
+  endif
+  return ''
 endfunction
 
 function! minimap#_set_view_range(line, col, start, end)
