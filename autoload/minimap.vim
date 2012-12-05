@@ -68,8 +68,12 @@ function! minimap#_on_open()
   hi link CursorLine Cursor
   winpos 0 0
   set lines=999
+  set updatetime=100
 
-  nnoremap <silent> <Plug>(lazy-apply-do) :call minimap#_lazy_apply_do()<CR>
+  augroup minimap_receiver
+    autocmd!
+    autocmd User * call minimap#_lazy_redraw_do()
+  augroup END
 
   " send ACK for open.
   if exists('g:minimap_ack')
@@ -95,7 +99,9 @@ function! minimap#_get_current_path()
 endfunction
 
 function! minimap#_on_recv(data)
-  call minimap#_lazy_apply(eval(a:data))
+  call minimap#_apply(eval(a:data))
+  call minimap#_lazy_redraw()
+  doautocmd User
 endfunction
 
 function! minimap#_apply(data)
@@ -112,23 +118,17 @@ function! minimap#_apply(data)
   endif
 endfunction
 
-let s:lazy_apply_count = get(s:, 'lazy_apply_count', 0)
-let s:lazy_apply_data = {}
+let s:lazy_redraw_flag = get(s:, 'lazy_redraw_flag', 0)
 
-function! minimap#_lazy_apply(data)
-  let s:lazy_apply_count += 1
-  let s:lazy_apply_data = a:data
-  call feedkeys("\<Plug>(lazy-apply-do)", 'm')
+function! minimap#_lazy_redraw(data)
+  let s:lazy_redraw_flag = 1
 endfunction
 
-function! minimap#_lazy_apply_do()
-  if s:lazy_apply_count > 0
-    let s:lazy_apply_count -= 1
-    if s:lazy_apply_count == 0
-      call minimap#_apply(s:lazy_apply_data)
-    endif
+function! minimap#_lazy_redraw_do()
+  if s:lazy_redraw_flag
+    redraw
+    let s:lazy_redraw_flag = 0
   endif
-  return ''
 endfunction
 
 function! minimap#_set_view_range(line, col, start, end)
@@ -145,7 +145,6 @@ function! minimap#_set_view_range(line, col, start, end)
   silent execute printf('match Search /\(%s\|%s\).*/', p1, p2)
   " move cursor
   call cursor(a:line, a:col)
-  redraw
 endfunction
 
 function! minimap#_set_autosync()
